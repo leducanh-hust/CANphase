@@ -1,38 +1,7 @@
-/*
- * Copyright 2020 NXP
- * All rights reserved.
- *
- * NXP Confidential. This software is owned or controlled by NXP and may only be
- * used strictly in accordance with the applicable license terms. By expressly
- * accepting such terms or by downloading, installing, activating and/or otherwise
- * using the software, you are agreeing that you have read, and that you agree to
- * comply with and are bound by, such license terms. If you do not agree to be
- * bound by the applicable license terms, then you may not retain, install,
- * activate or otherwise use the software. The production use license in
- * Section 2.3 is expressly granted for this software.
- */
-
-/* ###################################################################
-**     Filename    : main.c
-**     Project     : can_pal_s32k144
-**     Processor   : S32K144_100
-**     Version     : Driver 01.00
-**     Compiler    : GNU C Compiler
-**     Date/Time   : 2020-05-05, 11:48, # CodeGen: 2
-**     Abstract    :
-**         Main module.
-**         This module contains user's application code.
-**     Settings    :
-**     Contents    :
-**         No public methods
-**
-** ###################################################################*/
-
-
-
 #include "sdk_project_config.h"
 #include <interrupt_manager.h>
 #include <stdint.h>
+#include "DID.h"
 #include <stdbool.h>
 
 /******************************************************************************
@@ -46,27 +15,27 @@
 #define EVB
 
 #ifdef EVB
-    #define LED_PORT        PORTD
-    #define GPIO_PORT       PTD
-    #define PCC_INDEX       PCC_PORTD_INDEX
-    #define LED0            15U
-    #define LED1            16U
-    #define BTN_GPIO        PTC
-    #define BTN1_PIN        13U
-    #define BTN2_PIN        12U
-    #define BTN_PORT        PORTC
-    #define BTN_PORT_IRQn   PORTC_IRQn
+#define LED_PORT PORTD
+#define GPIO_PORT PTD
+#define PCC_INDEX PCC_PORTD_INDEX
+#define LED0 15U
+#define LED1 16U
+#define BTN_GPIO PTC
+#define BTN1_PIN 13U
+#define BTN2_PIN 12U
+#define BTN_PORT PORTC
+#define BTN_PORT_IRQn PORTC_IRQn
 #else
-    #define LED_PORT        PORTC
-    #define GPIO_PORT       PTC
-    #define PCC_INDEX       PCC_PORTC_INDEX
-    #define LED0            0U
-    #define LED1            1U
-    #define BTN_GPIO        PTC
-    #define BTN1_PIN        13U
-    #define BTN2_PIN        12U
-    #define BTN_PORT        PORTC
-    #define BTN_PORT_IRQn   PORTC_IRQn
+#define LED_PORT PORTC
+#define GPIO_PORT PTC
+#define PCC_INDEX PCC_PORTC_INDEX
+#define LED0 0U
+#define LED1 1U
+#define BTN_GPIO PTC
+#define BTN1_PIN 13U
+#define BTN2_PIN 12U
+#define BTN_PORT PORTC
+#define BTN_PORT_IRQn PORTC_IRQn
 #endif
 
 /* Use this define to specify if the application runs as master or slave */
@@ -75,15 +44,15 @@
 
 /* Definition of the TX and RX message buffers depending on the bus role */
 #if defined(MASTER)
-    #define TX_MAILBOX  (1UL)
-    #define TX_MSG_ID   (1UL)
-    #define RX_MAILBOX  (0UL)
-    #define RX_MSG_ID   (2UL)
+#define TX_MAILBOX (0UL)
+#define TX_MSG_ID (0x768)
+#define RX_MAILBOX (01UL)
+#define RX_MSG_ID (0x769)
 #elif defined(SLAVE)
-    #define TX_MAILBOX  (0UL)
-    #define TX_MSG_ID   (2UL)
-    #define RX_MAILBOX  (1UL)
-    #define RX_MSG_ID   (1UL)
+#define TX_MAILBOX (0UL)
+#define TX_MSG_ID (0x769)
+#define RX_MAILBOX (1UL)
+#define RX_MSG_ID (0x768)
 #endif
 
 typedef enum
@@ -94,81 +63,117 @@ typedef enum
 
 uint8_t ledRequested = (uint8_t)LED0_CHANGE_REQUESTED;
 
+extern did_entry_t support_DID_table[];
+
 /******************************************************************************
  * Function prototypes
  ******************************************************************************/
-void buttonISR(void);
+
 void BoardInit(void);
 void GPIOInit(void);
+
+// Support Functions
+void SendNRC(uint8_t SID, uint8_t NRC);
+bool checkCondition(uint16_t DID);
+// bool isSupportedDID(uint16_t DID);
+
+/*Service Handler Functions*/
+void SID_22_Handler(const can_message_t *message);
 
 /******************************************************************************
  * Functions
  ******************************************************************************/
-
-/**
- * Button interrupt handler
- */
-void buttonISR(void)
+void SendNRC(uint8_t SID, uint8_t NRC)
 {
-    /* Check if one of the buttons was pressed */
-    uint32_t buttonsPressed = PINS_DRV_GetPortIntFlag(BTN_PORT) &
-                                           ((1 << BTN1_PIN) | (1 << BTN2_PIN));
-    bool sendFrame = false;
+    can_buff_config_t buffCfg = {
+        .enableFD = false,
+        .enableBRS = false,
+        .fdPadding = 0U,
+        .idType = CAN_MSG_ID_STD,
+        .isRemote = false};
 
-    if(buttonsPressed != 0)
+    /* Configure TX buffer with index TX_MAILBOX*/
+    CAN_ConfigTxBuff(&can_pal1_instance, TX_MAILBOX, &buffCfg);
+
+    can_message_t message = {
+        .cs = 0U,
+        .id = TX_MSG_ID,
+        .data[0] = 0x7F,
+        .data[1] = SID,
+        .data[2] = NRC,
+        .length = 3U};
+
+    CAN_Send(&can_pal1_instance, TX_MAILBOX, &message);
+}
+
+bool checkCondition(uint16_t DID)
+{
+    // Apply Function Logic here
+    return true;
+}
+
+void SID_22_Handler(const can_message_t *rcvMsg)
+{
+    if (rcvMsg->length < 3 || (rcvMsg->length - 1) % 2 != 0)
+    {
+        SendNRC(rcvMsg->data[0], 0x13);
+        return;
+    }
+
+    if (rcvMsg->length > 8)
+    {
+        SendNRC(rcvMsg->data[0], 0x13);
+        return;
+    }
+
+    volatile bool hasValidDID = false;
+    uint8_t num_DID_support = sizeof(support_DID_table) / sizeof(did_entry_t);
+
+    for (uint8_t i = 0; i < num_DID_support; ++i)
     {
 
-        /* Set FlexCAN TX value according to the button pressed */
-        switch (buttonsPressed)
+        if (checkCondition(support_DID_table[i].did))
         {
-            case (1 << BTN1_PIN):
-                ledRequested = LED0_CHANGE_REQUESTED;
-                sendFrame = true;
-                /* Clear interrupt flag */
-                PINS_DRV_ClearPinIntFlagCmd(BTN_PORT, BTN1_PIN);
-                break;
-            case (1 << BTN2_PIN):
-                ledRequested = LED1_CHANGE_REQUESTED;
-                sendFrame = true;
-                /* Clear interrupt flag */
-                PINS_DRV_ClearPinIntFlagCmd(BTN_PORT, BTN2_PIN);
-                break;
-            default:
-                PINS_DRV_ClearPortIntFlagCmd(BTN_PORT);
-                break;
+            hasValidDID = true;
+            continue;
         }
-
-        if (sendFrame)
+        else
         {
-            /* Set information about the data to be sent
-             *  - Standard message ID
-             *  - Bit rate switch enabled to use a different bitrate for the data segment
-             *  - Flexible data rate enabled
-             *  - Use zeros for FD padding
-             */
-            can_buff_config_t buffCfg =  {
-                .enableFD = false,
-                .enableBRS = false,
-                .fdPadding = 0U,
-                .idType = CAN_MSG_ID_STD,
-                .isRemote = false
-            };
-
-            /* Configure TX buffer with index TX_MAILBOX*/
-            CAN_ConfigTxBuff(&can_pal1_instance, TX_MAILBOX, &buffCfg);
-
-            /* Prepare message to be sent */
-            can_message_t message = {
-                .cs = 0U,
-                .id = TX_MSG_ID,
-                .data[0] = ledRequested,
-                .length = 1U
-            };
-
-            /* Send the information via CAN */
-            CAN_Send(&can_pal1_instance, TX_MAILBOX, &message);
+            SendNRC(rcvMsg->data[0], 0x22);
+            return;
         }
     }
+
+    if (hasValidDID == false)
+    {
+        SendNRC(rcvMsg->data[0], 0x31);
+        return;
+    }
+    can_buff_config_t buffCfg = {
+        .enableFD = false,
+        .enableBRS = false,
+        .fdPadding = 0U,
+        .idType = CAN_MSG_ID_STD,
+        .isRemote = false};
+
+    /* Configure TX buffer with index TX_MAILBOX*/
+    CAN_ConfigTxBuff(&can_pal1_instance, TX_MAILBOX, &buffCfg);
+
+    /* Prepare message to be sent */
+    can_message_t message = {
+        .cs = 0U,
+        .id = TX_MSG_ID,
+        .data[0] = 0x22 + 0x40,
+        .data[1] = 0x10,
+        .data[2] = 0x08,
+        .data[3] = 0x00,
+        .data[4] = 0x04,
+        .data[5] = 0x7A,
+        .length = 6U};
+
+    /* Send the information via CAN */
+    CAN_Send(&can_pal1_instance, TX_MAILBOX, &message);
+    // SendPositiveResponse();
 }
 
 /*
@@ -183,7 +188,6 @@ void BoardInit(void)
      *  -   see clock manager component for more details
      */
     CLOCK_DRV_Init(&clockMan1_InitConfig0);
-
 
     /* Initialize pins
      *  -   Init FlexCAN and GPIO pins
@@ -204,20 +208,13 @@ void GPIOInit(void)
     PINS_DRV_ClearPins(GPIO_PORT, (1 << LED1) | (1 << LED0));
 
     /* Setup button pin */
-    PINS_DRV_SetPinsDirection(BTN_GPIO, ~((1 << BTN1_PIN)|(1 << BTN2_PIN)));
+    PINS_DRV_SetPinsDirection(BTN_GPIO, ~((1 << BTN1_PIN) | (1 << BTN2_PIN)));
 
     /* Setup button pins interrupt */
     PINS_DRV_SetPinIntSel(BTN_PORT, BTN1_PIN, PORT_INT_RISING_EDGE);
     PINS_DRV_SetPinIntSel(BTN_PORT, BTN2_PIN, PORT_INT_RISING_EDGE);
 
-    /* Install buttons ISR */
-    INT_SYS_InstallHandler(BTN_PORT_IRQn, &buttonISR, NULL);
-
-    /* Enable buttons interrupt */
-    INT_SYS_EnableIRQ(BTN_PORT_IRQn);
 }
-
-volatile int exit_code = 0;
 
 /*!
   \brief The main function for the project.
@@ -228,6 +225,7 @@ volatile int exit_code = 0;
  *     - Common_Init()
  *     - Peripherals_Init()
 */
+
 int main(void)
 {
     /* Do the initializations required for this application */
@@ -242,18 +240,17 @@ int main(void)
      *  - Flexible data rate enabled
      *  - Use zeros for FD padding
      */
-    can_buff_config_t buffCfg =  {
+    can_buff_config_t buffCfg = {
         .enableFD = false,
         .enableBRS = false,
         .fdPadding = 0U,
         .idType = CAN_MSG_ID_STD,
-        .isRemote = false
-    };
+        .isRemote = false};
 
     /* Configure RX buffer with index RX_MAILBOX */
     CAN_ConfigRxBuff(&can_pal1_instance, RX_MAILBOX, &buffCfg, RX_MSG_ID);
 
-    while(1)
+    while (1)
     {
         /* Define receive buffer */
         can_message_t recvMsg;
@@ -262,28 +259,10 @@ int main(void)
         CAN_Receive(&can_pal1_instance, RX_MAILBOX, &recvMsg);
 
         /* Wait until the previous FlexCAN receive is completed */
-        while(CAN_GetTransferStatus(&can_pal1_instance, RX_MAILBOX) == STATUS_BUSY);
-
-        /* Check the received message ID and payload */
-        if((recvMsg.data[0] == LED0_CHANGE_REQUESTED) &&
-                recvMsg.id == RX_MSG_ID)
+        while (CAN_GetTransferStatus(&can_pal1_instance, RX_MAILBOX) == STATUS_BUSY);
+        if (recvMsg.id == RX_MSG_ID && recvMsg.data[0] == 0x22)
         {
-            /* Toggle output value LED1 */
-            PINS_DRV_TogglePins(GPIO_PORT, (1 << LED0));
-        }
-        else if((recvMsg.data[0] == LED1_CHANGE_REQUESTED) &&
-                recvMsg.id == RX_MSG_ID)
-        {
-            /* Toggle output value LED0 */
-            PINS_DRV_TogglePins(GPIO_PORT, (1 << LED1));
+            SID_22_Handler(&recvMsg);
         }
     }
-
-    for(;;) {
-      if(exit_code != 0) {
-        break;
-      }
-    }
-    return exit_code;
 }
-

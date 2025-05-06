@@ -20,7 +20,8 @@ src/main.o: ../src/main.c \
  C:/NXP/S32DS.3.5/S32DS/software/S32SDK_S32K1XX_RTM_4.0.1/platform/drivers/inc/edma_driver.h \
  C:/NXP/S32DS.3.5/S32DS/software/S32SDK_S32K1XX_RTM_4.0.1/platform/devices/callbacks.h \
  C:/Users/anhan/workspaceS32DS.3.5/can_pal_s32k144/board/peripherals_osif1.h \
- C:/NXP/S32DS.3.5/S32DS/software/S32SDK_S32K1XX_RTM_4.0.1/platform/drivers/inc/interrupt_manager.h
+ C:/NXP/S32DS.3.5/S32DS/software/S32SDK_S32K1XX_RTM_4.0.1/platform/drivers/inc/interrupt_manager.h \
+ ../src/DID.h
 
 C:/Users/anhan/workspaceS32DS.3.5/can_pal_s32k144/board/sdk_project_config.h:
 
@@ -65,3 +66,5 @@ C:/NXP/S32DS.3.5/S32DS/software/S32SDK_S32K1XX_RTM_4.0.1/platform/devices/callba
 C:/Users/anhan/workspaceS32DS.3.5/can_pal_s32k144/board/peripherals_osif1.h:
 
 C:/NXP/S32DS.3.5/S32DS/software/S32SDK_S32K1XX_RTM_4.0.1/platform/drivers/inc/interrupt_manager.h:
+
+../src/DID.h:
